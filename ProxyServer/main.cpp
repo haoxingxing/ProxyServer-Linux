@@ -155,7 +155,7 @@ int main(int argc, char* argv[])
 			++thread_cout;
 			s2c.detach();
 			++thread_cout;
-			std::cout << thread_cout;
+			//std::cout << thread_cout;
 			//printVector();
 		}
 	}
