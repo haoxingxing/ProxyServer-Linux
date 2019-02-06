@@ -76,10 +76,14 @@ static void stop(int sig) {
 		close(fds[i]);
 	}
 	std::cout << ": Waiting For Threads To exit" << std::endl << std::endl;
+	int c = 0;
 	while (thread_cout != 0) {
-		std::cout << "\e[1A\e[K" << "[" << thread_cout << "] threads left" << std::endl;
+		std::cout << "\e[1A\e[K" << "[" << thread_cout << "] threads left [" << c << "/" << 1000 << " Timeout left]" << std::endl;
 		usleep(33000);
+		if (c > 1000) { std::cout << "Timeout!\n"; exit(0); }
+		c++;
 	};
+
 	sleep(1);
 	std::cout << "\e[1A\e[K\e[1A\e[K[$$$$$$$$$$$$$$]" << std::endl;
 	exit(0);
@@ -151,6 +155,7 @@ int main(int argc, char* argv[])
 			++thread_cout;
 			s2c.detach();
 			++thread_cout;
+			std::cout << thread_cout;
 			//printVector();
 		}
 	}
