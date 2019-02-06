@@ -64,8 +64,10 @@ void AToB(int A, int B, bool cl = true) {
 };
 
 static void stop(int sig) {
+	if (isstopping) return;
 	isstopping = true;
 	//printVector();
+	std::cout << std::endl << "Server Stopping";
 	close(server_fd);
 	//printVector();
 	for (int i = 0; i < (int)fds.size(); ++i) {
@@ -73,7 +75,7 @@ static void stop(int sig) {
 		shutdown(fds[i], SHUT_RDWR);
 		close(fds[i]);
 	}
-	std::cout << std::endl << "Waiting For Threads To exit" << std::endl << std::endl;
+	std::cout << ": Waiting For Threads To exit" << std::endl << std::endl;
 	while (thread_cout != 0) {
 		std::cout << "\e[1A\e[K" << "[" << thread_cout << "] threads left" << std::endl;
 		usleep(33000);
@@ -81,6 +83,13 @@ static void stop(int sig) {
 	sleep(1);
 	std::cout << "\e[1A\e[K\e[1A\e[K[$$$$$$$$$$$$$$]" << std::endl;
 	exit(0);
+}
+
+void thread_wait_stdin_stop() {
+	std::string buf;
+	while (buf != "stop")
+		std::cin >> buf;
+	stop(0);
 }
 int main(int argc, char* argv[])
 {
@@ -111,6 +120,8 @@ int main(int argc, char* argv[])
 		return 1;
 	};
 	std::cout << std::endl << "[#%#%#%#%#%#%#%]" << std::endl;
+	std::thread ws(thread_wait_stdin_stop);
+	ws.detach();
 	while (true) {
 		sockaddr_in r;
 		int sin_size = sizeof(struct sockaddr_in);
