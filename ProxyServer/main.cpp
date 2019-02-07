@@ -115,9 +115,9 @@ void usage() {
 	std::cout
 		<< std::endl
 		<< "Proxy "
-		<< "--localport port "
-		<< "--remoteport port "
-		<< "--remoteaddress address "
+		<< "--local-port port "
+		<< "--remote-port port "
+		<< "--remote-address address "
 		<< "[--log] "
 		<< "[--log-flow] "
 		<< std::endl;
@@ -129,20 +129,38 @@ int main(int argc, char* argv[])
 	char* ObjectAddress = (char*)"";
 	for (int i = 1; i < argc; ++i)
 	{
-		if (argv[i] == (char*)"--loaclport")
+		if (std::string(argv[i]) == "--local-port") {
 			ThisPort = (uint16_t)std::stoi(argv[i + 1]);
-		else if (argv[i] == (char*) "--remoteport")
+			++i;
+			continue;
+		}
+		else if (std::string(argv[i]) == "--remote-port") {
 			ObjectPort = (uint16_t)std::stoi(argv[i + 1]);
-		else if (argv[i] == (char*) "--remoteaddress")
+			++i;
+			continue;
+		}
+		else if (std::string(argv[i]) == "--remote-address") {
 			ObjectAddress = argv[i + 1];
-		else if (argv[i] == (char*)"--server")
+			++i;
+			continue;
+		}
+		else if (std::string(argv[i]) == "--server") {
 			isserver = true;
-		else if (argv[i] == (char*) "--log")
+			++i;
+			continue;
+		}
+		else if (std::string(argv[i]) == "--log") {
 			isLog = true;
-		else if (argv[i] == (char*)"--log-flow")
+			++i;
+			continue;
+		}
+		else if (std::string(argv[i]) == "--log-flow") {
 			isshow = true;
+			++i;
+			continue;
+		}
 	}
-	if (ObjectAddress == (char*)"") { std::cout << "Remote Address Not Found"; usage(); return -1; }
+	if (std::string(ObjectAddress) == "") { std::cout << "Remote Address Not Found"; usage(); return -1; }
 	if (ObjectPort == 0) { std::cout << "Remote Port Not Found"; usage(); return -1; }
 	if (ThisPort == 0) { std::cout << "Local Port Not Found"; usage(); return -1; }
 
