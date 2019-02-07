@@ -1,4 +1,4 @@
-#include <stdio.h>
+﻿#include <stdio.h>
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <string.h>
@@ -48,12 +48,31 @@ void AToB(int A, int B, bool cl = true) {
 	char buffer[1];
 	while (status > 0 && !isstopping)
 	{
-		memset(buffer, 0, 1);
-		status = recv(A, buffer, sizeof(buffer), MSG_WAITALL);
-		if (status < 1) break;
-		send(B, buffer, sizeof(buffer), MSG_WAITALL);
+		if (cl)
+		{
+			memset(buffer, 0, 1);
+			status = recv(A, buffer, sizeof(buffer), MSG_WAITALL);
+			if (status < 1) break;
+			std::string s = base64_encode(std::string(1, buffer[0]));
+			send(B, s.c_str(), sizeof(s.c_str()), MSG_WAITALL);
+			send(B, "\r\n", sizeof("\r\n"), MSG_WAITALL);
+		}
+		else
+		{
+			std::string w;
+			while (buffer[0] != '\n')
+			{
+				status = recv(A, buffer, sizeof(buffer), MSG_WAITALL);
+				w += buffer[0];
+				if (status < 1) goto close;
+			}
+			w = w.substr(0, w.length() - 1);
+			std::string s = base64_decode(w);
+			send(B, s.c_str(), sizeof(s.c_str()), MSG_WAITALL);
+		}
 		if (!isstopping) if (isLog) std::cout << color + (isshow ? buffer[0] : '+') + "\e[0m" << std::flush;
 	}
+close:
 	closeA(B);
 	if (!isstopping) std::cout << color + "$\e[0m" << std::flush;
 	--thread_cout;
