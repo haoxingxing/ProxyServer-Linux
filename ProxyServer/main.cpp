@@ -35,9 +35,9 @@ void removeValue(int value) {
 		}
 	isUsingVector = false;
 }
-int sendstr(int socketfd, std::string str) {
+void sendstr(int socketfd, std::string str) {
 	char buf[1];
-	for (ssize_t i = 0; i < str.size(); i++)
+	for (size_t i = 0; i < str.size(); i++)
 	{
 		buf[0] = str.at(i);
 		send(socketfd, buf, sizeof(buf), 0);
@@ -51,7 +51,7 @@ void closeA(int A)
 }
 void AToB(int A, int B, bool cl = true) {
 	++thread_cout;
-	int status = 1;
+	ssize_t status = 1;
 	std::string color;
 	if (cl)color = "\033[34;1m"; else color = "\033[31;1m";
 	char buffer[1];
@@ -64,6 +64,7 @@ void AToB(int A, int B, bool cl = true) {
 			if (status < 1) break;
 			std::string s = base64_encode(std::string(1, buffer[0]));
 			sendstr(B, s + "\r\n");
+			if (!isstopping) if (isLog) std::cout << color + (isshow ? buffer[0] : '+') + "\e[0m" << std::flush;
 		}
 		else
 		{
@@ -78,8 +79,8 @@ void AToB(int A, int B, bool cl = true) {
 			w = w.substr(0, w.length() - 2);
 			std::string s = base64_decode(w);
 			sendstr(B, s);
+			if (!isstopping) if (isLog) std::cout << color + (isshow ? s : "+") + "\e[0m" << std::flush;
 		}
-		if (!isstopping) if (isLog) std::cout << color + (isshow ? buffer[0] : '+') + "\e[0m" << std::flush;
 	}
 close:
 	closeA(B);
@@ -110,18 +111,41 @@ void thread_wait_stdin_stop() {
 		std::cin >> buf;
 	stop(0);
 }
+void usage() {
+	std::cout
+		<< std::endl
+		<< "Proxy "
+		<< "--localport port "
+		<< "--remoteport port "
+		<< "--remoteaddress address "
+		<< "[--log] "
+		<< "[--log-flow] "
+		<< std::endl;
+}
 int main(int argc, char* argv[])
 {
-	if (argc < 4) {
-		std::cout << "\n Usage: \n\rProxyServer LocalPort RemoteAddress RemotePort [-server] [-log] [-echo]";
-		return -1;
+	uint16_t ThisPort = 0;
+	uint16_t ObjectPort = 0;
+	char* ObjectAddress = (char*)"";
+	for (int i = 1; i < argc; ++i)
+	{
+		if (argv[i] == (char*)"--loaclport")
+			ThisPort = (uint16_t)std::stoi(argv[i + 1]);
+		else if (argv[i] == (char*) "--remoteport")
+			ObjectPort = (uint16_t)std::stoi(argv[i + 1]);
+		else if (argv[i] == (char*) "--remoteaddress")
+			ObjectAddress = argv[i + 1];
+		else if (argv[i] == (char*)"--server")
+			isserver = true;
+		else if (argv[i] == (char*) "--log")
+			isLog = true;
+		else if (argv[i] == (char*)"--log-flow")
+			isshow = true;
 	}
-	int ThisPort = std::stoi(argv[1]);
-	char* ObjectAddress = argv[2];
-	int ObjectPort = std::stoi(argv[3]);
-	if (argc > 4)	isserver = true;
-	if (argc > 5)	isLog = true;
-	if (argc > 6)	isshow = true;
+	if (ObjectAddress == (char*)"") { std::cout << "Remote Address Not Found"; usage(); return -1; }
+	if (ObjectPort == 0) { std::cout << "Remote Port Not Found"; usage(); return -1; }
+	if (ThisPort == 0) { std::cout << "Local Port Not Found"; usage(); return -1; }
+
 	signal(SIGINT, stop);
 	signal(SIGPIPE, SIG_IGN);
 	server_fd = socket(AF_INET, SOCK_STREAM, 0);
