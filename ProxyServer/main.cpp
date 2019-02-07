@@ -118,6 +118,7 @@ void usage() {
 		<< "--local-port port "
 		<< "--remote-port port "
 		<< "--remote-address address "
+		<< "[--server]"
 		<< "[--log] "
 		<< "[--log-flow] "
 		<< std::endl;
@@ -146,7 +147,6 @@ int main(int argc, char* argv[])
 		}
 		else if (std::string(argv[i]) == "--server") {
 			isserver = true;
-			++i;
 			continue;
 		}
 		else if (std::string(argv[i]) == "--log") {
