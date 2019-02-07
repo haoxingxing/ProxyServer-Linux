@@ -34,10 +34,17 @@
       <Platform>x64</Platform>
     </ProjectConfiguration>
   </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="base64.cpp" />
+    <ClCompile Include="main.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="base64.h" />
+  </ItemGroup>
   <PropertyGroup Label="Globals">
-    <ProjectGuid>{e83a1c92-d68e-4cb3-a552-983ede0ab130}</ProjectGuid>
+    <ProjectGuid>{c2722889-1d2d-4494-a682-f8a0648a37ab}</ProjectGuid>
     <Keyword>Linux</Keyword>
-    <RootNamespace>ProxyServer</RootNamespace>
+    <RootNamespace>ProxyClient</RootNamespace>
     <MinimumVisualStudioVersion>15.0</MinimumVisualStudioVersion>
     <ApplicationType>Linux</ApplicationType>
     <ApplicationTypeRevision>1.0</ApplicationTypeRevision>
@@ -74,39 +81,7 @@
   <ImportGroup Label="Shared" />
   <ImportGroup Label="PropertySheets" />
   <PropertyGroup Label="UserMacros" />
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">
-    <RemoteCppCompileToolExe>g++</RemoteCppCompileToolExe>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">
-    <RemoteCppCompileToolExe>g++</RemoteCppCompileToolExe>
-  </PropertyGroup>
-  <ItemGroup>
-    <ClCompile Include="base64.cpp" />
-    <ClCompile Include="main.cpp" />
-  </ItemGroup>
-  <ItemGroup>
-    <ClInclude Include="base64.h" />
-  </ItemGroup>
-  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">
-    <ClCompile>
-      <CppLanguageStandard>c++11</CppLanguageStandard>
-      <AdditionalOptions>-std=c++11 %(AdditionalOptions)</AdditionalOptions>
-      <Verbose>true</Verbose>
-    </ClCompile>
-    <Link>
-      <AdditionalOptions>-pthread %(AdditionalOptions)</AdditionalOptions>
-    </Link>
-  </ItemDefinitionGroup>
-  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">
-    <ClCompile>
-      <CppLanguageStandard>c++11</CppLanguageStandard>
-      <AdditionalOptions>-std=c++11 %(AdditionalOptions)</AdditionalOptions>
-      <Verbose>true</Verbose>
-    </ClCompile>
-    <Link>
-      <AdditionalOptions>-pthread %(AdditionalOptions)</AdditionalOptions>
-    </Link>
-  </ItemDefinitionGroup>
+  <ItemDefinitionGroup />
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets" />
 </Project>
