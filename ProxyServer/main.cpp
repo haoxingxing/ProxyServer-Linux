@@ -20,6 +20,7 @@ bool isstopping = false;
 bool isLog = false;
 bool isshow = false;
 bool isUsingVector = false;
+bool isserver = false;
 int server_fd;
 int thread_cout = 0;
 std::vector<int> fds;
@@ -33,6 +34,14 @@ void removeValue(int value) {
 			break;
 		}
 	isUsingVector = false;
+}
+int sendstr(int socketfd, std::string str) {
+	char buf[1];
+	for (ssize_t i = 0; i < str.size(); i++)
+	{
+		buf[0] = str.at(i);
+		send(socketfd, buf, sizeof(buf), 0);
+	}
 }
 
 void closeA(int A)
@@ -54,11 +63,11 @@ void AToB(int A, int B, bool cl = true) {
 			status = recv(A, buffer, sizeof(buffer), MSG_WAITALL);
 			if (status < 1) break;
 			std::string s = base64_encode(std::string(1, buffer[0]));
-			send(B, s.c_str(), sizeof(s.c_str()), MSG_WAITALL);
-			send(B, "\r\n", sizeof("\r\n"), MSG_WAITALL);
+			sendstr(B, s + "\r\n");
 		}
 		else
 		{
+			memset(buffer, 0, 1);
 			std::string w;
 			while (buffer[0] != '\n')
 			{
@@ -66,9 +75,9 @@ void AToB(int A, int B, bool cl = true) {
 				w += buffer[0];
 				if (status < 1) goto close;
 			}
-			w = w.substr(0, w.length() - 1);
+			w = w.substr(0, w.length() - 2);
 			std::string s = base64_decode(w);
-			send(B, s.c_str(), sizeof(s.c_str()), MSG_WAITALL);
+			sendstr(B, s);
 		}
 		if (!isstopping) if (isLog) std::cout << color + (isshow ? buffer[0] : '+') + "\e[0m" << std::flush;
 	}
@@ -104,14 +113,15 @@ void thread_wait_stdin_stop() {
 int main(int argc, char* argv[])
 {
 	if (argc < 4) {
-		std::cout << "\n Usage: \n\rProxyServer LocalPort RemoteAddress RemotePort [-log]";
+		std::cout << "\n Usage: \n\rProxyServer LocalPort RemoteAddress RemotePort [-server] [-log] [-echo]";
 		return -1;
 	}
 	int ThisPort = std::stoi(argv[1]);
 	char* ObjectAddress = argv[2];
 	int ObjectPort = std::stoi(argv[3]);
-	if (argc > 4)	isLog = true;
-	if (argc > 5)	isshow = true;
+	if (argc > 4)	isserver = true;
+	if (argc > 5)	isLog = true;
+	if (argc > 6)	isshow = true;
 	signal(SIGINT, stop);
 	signal(SIGPIPE, SIG_IGN);
 	server_fd = socket(AF_INET, SOCK_STREAM, 0);
@@ -155,8 +165,8 @@ int main(int argc, char* argv[])
 		else {
 			fds.push_back(socketfd);
 			std::cout << "\033[31;1m#\033[0m" << std::flush;
-			std::thread c2s(AToB, client_sockfd, socketfd, true);
-			std::thread s2c(AToB, socketfd, client_sockfd, false);
+			std::thread c2s(AToB, client_sockfd, socketfd, !isserver);
+			std::thread s2c(AToB, socketfd, client_sockfd, isserver);
 			c2s.detach();
 			s2c.detach();
 		}
