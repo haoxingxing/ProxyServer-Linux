@@ -151,12 +151,10 @@ int main(int argc, char* argv[])
 		}
 		else if (std::string(argv[i]) == "--log") {
 			isLog = true;
-			++i;
 			continue;
 		}
 		else if (std::string(argv[i]) == "--log-flow") {
 			isshow = true;
-			++i;
 			continue;
 		}
 	}
