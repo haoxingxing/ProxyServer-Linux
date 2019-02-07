@@ -39,6 +39,7 @@ void sendstr(int socketfd, std::string str) {
 	char buf[1];
 	for (size_t i = 0; i < str.size(); i++)
 	{
+		memset(buf, 0, 1);
 		buf[0] = str.at(i);
 		send(socketfd, buf, sizeof(buf), 0);
 	}
@@ -60,7 +61,7 @@ void AToB(int A, int B, bool cl = true) {
 		if (cl)
 		{
 			memset(buffer, 0, 1);
-			status = recv(A, buffer, sizeof(buffer), MSG_WAITALL);
+			status = recv(A, buffer, sizeof(buffer), 0);
 			if (status < 1) break;
 			std::string s = base64_encode(std::string(1, buffer[0]));
 			sendstr(B, s + "\r\n");
@@ -70,9 +71,10 @@ void AToB(int A, int B, bool cl = true) {
 		{
 			memset(buffer, 0, 1);
 			std::string w;
+			w.clear();
 			while (buffer[0] != '\n')
 			{
-				status = recv(A, buffer, sizeof(buffer), MSG_WAITALL);
+				status = recv(A, buffer, sizeof(buffer), 0);
 				w += buffer[0];
 				if (status < 1) goto close;
 			}
@@ -91,9 +93,7 @@ close:
 static void stop(int sig) {
 	if (isstopping) return;
 	isstopping = true;
-	//printVector();
 	shutdown(server_fd, SHUT_RDWR);
-	//printVector();
 	std::cout << std::endl << "Server Stopping: Shutting Down Sockets " << std::endl << std::endl;
 	for (size_t i = 0; i < fds.size(); ++i) {
 		std::cout << "\e[1A\e[K" << "[" << i << "/" << fds.size() << "]" << std::endl;
@@ -197,7 +197,6 @@ int main(int argc, char* argv[])
 		inet_pton(AF_INET, ObjectAddress, &sockaddr.sin_addr);
 		if ((connect(socketfd, (struct sockaddr*)&sockaddr, sizeof(sockaddr))) < 0)
 		{
-			printf("Client Error");
 			close(client_sockfd);
 			removeValue(client_sockfd);
 			std::cout << "\033[34;1m$\033[0m" << std::flush;
