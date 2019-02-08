@@ -81,10 +81,12 @@
     <RemoteCppCompileToolExe>g++</RemoteCppCompileToolExe>
   </PropertyGroup>
   <ItemGroup>
+    <ClCompile Include="aes.cpp" />
     <ClCompile Include="base64.cpp" />
     <ClCompile Include="main.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="aes.h" />
     <ClInclude Include="base64.h" />
   </ItemGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">

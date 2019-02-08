@@ -13,7 +13,7 @@
 #include <iostream>
 #include <string>
 #include <iomanip>
-
+#include "aes.h"
 #include "base64.h"
 
 bool isstopping = false;
@@ -25,6 +25,75 @@ bool isserver = false;
 int server_fd;
 int thread_cout = 0;
 std::vector<int> fds;
+
+char g_key[17] = "password";
+const char g_iv[17] = "gfdertfghjkuyrtg";//ECB MODE不需要关心chain，可以填空
+string EncryptionAES(const string& strSrc) //AES加密
+{
+	size_t length = strSrc.length();
+	int block_num = length / BLOCK_SIZE + 1;
+	//明文
+	char* szDataIn = new char[block_num * BLOCK_SIZE + 1];
+	memset(szDataIn, 0x00, block_num * BLOCK_SIZE + 1);
+	strcpy(szDataIn, strSrc.c_str());
+
+	//进行PKCS7Padding填充。
+	int k = length % BLOCK_SIZE;
+	int j = length / BLOCK_SIZE;
+	int padding = BLOCK_SIZE - k;
+	for (int i = 0; i < padding; i++)
+	{
+		szDataIn[j * BLOCK_SIZE + k + i] = padding;
+	}
+	szDataIn[block_num * BLOCK_SIZE] = '\0';
+
+	char *szDataOut = new char[block_num * BLOCK_SIZE + 1];
+	memset(szDataOut, 0, block_num * BLOCK_SIZE + 1);
+
+	//进行进行AES的CBC模式加密
+	AES aes;
+	aes.MakeKey(g_key, g_iv, 16, 16);
+	aes.Encrypt(szDataIn, szDataOut, block_num * BLOCK_SIZE, AES::CBC);
+	std::string str = base64_encode((unsigned char*)szDataOut,
+		block_num * BLOCK_SIZE);
+	delete[] szDataIn;
+	delete[] szDataOut;
+	return str;
+}
+std::string DecryptionAES(const std::string& strSrc) //AES解密
+{
+	std::string strData = base64_decode(strSrc);
+	size_t length = strData.length();
+	char *szDataIn = new char[length + 1];
+	memcpy(szDataIn, strData.c_str(), length + 1);
+	char *szDataOut = new char[length + 1];
+	memcpy(szDataOut, strData.c_str(), length + 1);
+
+	//进行AES的CBC模式解密
+	AES aes;
+	aes.MakeKey(g_key, g_iv, 16, 16);
+	aes.Decrypt(szDataIn, szDataOut, length, AES::CBC);
+
+	//去PKCS7Padding填充
+	if (0x00 < szDataOut[length - 1] <= 0x16)
+	{
+		int tmp = szDataOut[length - 1];
+		for (int i = length - 1; i >= length - tmp; i--)
+		{
+			if (szDataOut[i] != tmp)
+			{
+				memset(szDataOut, 0, length);
+				break;
+			}
+			else
+				szDataOut[i] = 0;
+		}
+	}
+	std::string strDest(szDataOut);
+	delete[] szDataIn;
+	delete[] szDataOut;
+	return strDest;
+}
 void removeValue(int value) {
 	while (isUsingVector)
 		sleep(1);
@@ -65,7 +134,7 @@ void AToB(int A, int B, bool cl = true) {
 			memset(buffer, 0, 1);
 			status = recv(A, buffer, sizeof(buffer), 0);
 			if (status < 1) break;
-			std::string s = base64_encode(std::string(1, buffer[0]));
+			std::string s = EncryptionAES(std::string(1, buffer[0]));
 			status = sendstr(B, s + "\r\n");
 			if (status < 1) break;
 			if (!isstopping) if (isLog) std::cout << color + (isshow ? buffer[0] : '+') + "\e[0m" << std::flush;
@@ -82,7 +151,7 @@ void AToB(int A, int B, bool cl = true) {
 				if (status < 1) goto close;
 			}
 			w = w.substr(0, w.length() - 2);
-			std::string s = base64_decode(w);
+			std::string s = DecryptionAES(w);
 			status = sendstr(B, s);
 			if (status < 1) break;
 			if (!isstopping) if (isLog) std::cout << color + (isshow ? s : "+") + "\e[0m" << std::flush;
@@ -122,6 +191,7 @@ void usage() {
 		<< "--local-port port "
 		<< "--remote-port port "
 		<< "--remote-address address "
+		<< "[--password password]"
 		<< "[--server]"
 		<< "[--log] "
 		<< "[--log-flow] "
@@ -149,6 +219,14 @@ int main(int argc, char* argv[])
 			++i;
 			continue;
 		}
+		else if (std::string(argv[i]) == "--password") {
+			if (std::string(argv[i + 1]).substr(0, 16) != std::string(argv[i + 1])) {
+				std::cout << "Note: Password Will Cut Off After 16bit" << std::endl;
+			}
+			strcpy(g_key, std::string(argv[i + 1]).substr(0, 16).c_str());
+			++i;
+			continue;
+		}
 		else if (std::string(argv[i]) == "--server") {
 			isserver = true;
 			continue;
@@ -165,7 +243,8 @@ int main(int argc, char* argv[])
 	if (std::string(ObjectAddress) == "") { std::cout << "Remote Address Not Found"; usage(); return -1; }
 	if (ObjectPort == 0) { std::cout << "Remote Port Not Found"; usage(); return -1; }
 	if (ThisPort == 0) { std::cout << "Local Port Not Found"; usage(); return -1; }
-
+	if (std::string(g_key) == "password")
+		std::cout << "Note: Using Default Password";
 	signal(SIGINT, stop);
 	signal(SIGPIPE, SIG_IGN);
 	server_fd = socket(AF_INET, SOCK_STREAM, 0);
