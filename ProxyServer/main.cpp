@@ -21,6 +21,7 @@ bool isLog = false;
 bool isshow = false;
 bool isUsingVector = false;
 bool isserver = false;
+bool isusingaes = false;
 
 int server_fd;
 int thread_cout = 0;
@@ -105,15 +106,14 @@ void removeValue(int value) {
 		}
 	isUsingVector = false;
 }
-int sendstr(int socketfd, std::string str) {
+void sendstr(int socketfd, std::string str) {
 	char buf[1];
 	for (size_t i = 0; i < str.size(); i++)
 	{
 		memset(buf, 0, 1);
 		buf[0] = str.at(i);
-		if (send(socketfd, buf, sizeof(buf), 0) < 1) return -1;
+		send(socketfd, buf, sizeof(buf), 0);
 	}
-	return 1;
 }
 
 void closeA(int A)
@@ -125,37 +125,45 @@ void AToB(int A, int B, bool cl = true) {
 	++thread_cout;
 	ssize_t status = 1;
 	std::string color;
-	if (cl)color = "\033[34;1m"; else color = "\033[31;1m";
+	if (cl)
+		color = "\033[34;1m";
+	else
+		color = "\033[31;1m";
 	char buffer[1];
 	while (status > 0 && !isstopping)
 	{
+		memset(buffer, 0, 1);
+		std::string s = "";
 		if (cl)
 		{
-			memset(buffer, 0, 1);
 			status = recv(A, buffer, sizeof(buffer), 0);
 			if (status < 1) break;
-			std::string s = EncryptionAES(std::string(1, buffer[0]));
-			status = sendstr(B, s + "\r\n");
-			if (status < 1) break;
-			if (!isstopping) if (isLog) std::cout << color + (isshow ? buffer[0] : '+') + "\e[0m" << std::flush;
+			if (isusingaes)
+				s = EncryptionAES(base64_encode_str(std::string(1, buffer[0])));
+			else
+				s = base64_encode_str(std::string(1, buffer[0]));
+			s += "\n";
 		}
 		else
 		{
-			memset(buffer, 0, 1);
-			std::string w;
-			w.clear();
 			while (buffer[0] != '\n')
 			{
 				status = recv(A, buffer, sizeof(buffer), 0);
-				w += buffer[0];
+				s += buffer[0];
 				if (status < 1) goto close;
 			}
-			w = w.substr(0, w.length() - 2);
-			std::string s = DecryptionAES(w);
-			status = sendstr(B, s);
-			if (status < 1) break;
-			if (!isstopping) if (isLog) std::cout << color + (isshow ? s : "+") + "\e[0m" << std::flush;
+			s = s.substr(0, s.length() - 1);
+			if (isusingaes)
+				s = base64_decode(DecryptionAES(s));
+			else
+				s = base64_decode(s);
 		}
+		sendstr(B, s);
+		if (!isstopping)
+			if (isLog)
+				std::cout
+				<< color + (isshow ? s : "+") + "\e[0m"
+				<< std::flush;
 	}
 close:
 	closeA(B);
@@ -243,8 +251,8 @@ int main(int argc, char* argv[])
 	if (std::string(ObjectAddress) == "") { std::cout << "Remote Address Not Found"; usage(); return -1; }
 	if (ObjectPort == 0) { std::cout << "Remote Port Not Found"; usage(); return -1; }
 	if (ThisPort == 0) { std::cout << "Local Port Not Found"; usage(); return -1; }
-	if (std::string(g_key) == "password")
-		std::cout << "Note: Using Default Password";
+	if (std::string(g_key) != "password")
+		isusingaes = true;
 	signal(SIGINT, stop);
 	signal(SIGPIPE, SIG_IGN);
 	server_fd = socket(AF_INET, SOCK_STREAM, 0);
