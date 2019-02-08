@@ -21,6 +21,7 @@ bool isLog = false;
 bool isshow = false;
 bool isUsingVector = false;
 bool isserver = false;
+
 int server_fd;
 int thread_cout = 0;
 std::vector<int> fds;
@@ -35,14 +36,15 @@ void removeValue(int value) {
 		}
 	isUsingVector = false;
 }
-void sendstr(int socketfd, std::string str) {
+int sendstr(int socketfd, std::string str) {
 	char buf[1];
 	for (size_t i = 0; i < str.size(); i++)
 	{
 		memset(buf, 0, 1);
 		buf[0] = str.at(i);
-		send(socketfd, buf, sizeof(buf), 0);
+		if (send(socketfd, buf, sizeof(buf), 0) < 1) return -1;
 	}
+	return 1;
 }
 
 void closeA(int A)
@@ -64,7 +66,8 @@ void AToB(int A, int B, bool cl = true) {
 			status = recv(A, buffer, sizeof(buffer), 0);
 			if (status < 1) break;
 			std::string s = base64_encode(std::string(1, buffer[0]));
-			sendstr(B, s + "\r\n");
+			status = sendstr(B, s + "\r\n");
+			if (status < 1) break;
 			if (!isstopping) if (isLog) std::cout << color + (isshow ? buffer[0] : '+') + "\e[0m" << std::flush;
 		}
 		else
@@ -80,7 +83,8 @@ void AToB(int A, int B, bool cl = true) {
 			}
 			w = w.substr(0, w.length() - 2);
 			std::string s = base64_decode(w);
-			sendstr(B, s);
+			status = sendstr(B, s);
+			if (status < 1) break;
 			if (!isstopping) if (isLog) std::cout << color + (isshow ? s : "+") + "\e[0m" << std::flush;
 		}
 	}
