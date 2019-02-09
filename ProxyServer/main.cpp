@@ -20,21 +20,20 @@
 bool isstopping = false;
 bool isLog = false;
 bool isshow = false;
-bool isUsingVector = false;
 bool isserver = false;
 bool isusingaes = false;
 
 int server_fd;
 int thread_cout = 0;
 std::vector<int> fds;
-std::map<std::string, std::string> lookup_table;
+std::map<std::string, std::string*> lookup_table;
 
 char g_key[17] = "password";
 const char g_iv[17] = "";//ECB MODE不需要关心chain，可以填空
-string EncryptionAES(const string& strSrc) //AES加密
+std::string EncryptionAES(const std::string& strSrc) //AES加密
 {
 	size_t length = strSrc.length();
-	int block_num = length / BLOCK_SIZE + 1;
+	size_t block_num = length / BLOCK_SIZE + 1;
 	char* szDataIn = new char[block_num * BLOCK_SIZE + 1];
 	memset(szDataIn, 0x00, block_num * BLOCK_SIZE + 1);
 	strcpy(szDataIn, strSrc.c_str());
@@ -92,46 +91,37 @@ std::string DecryptionAES(const std::string& strSrc) //AES解密
 	delete[] szDataOut;
 	return strDest;
 }
-inline void init_table(std::string str, bool _isserver) {
+void init_table(std::string str, bool _isserver) {
 	if (_isserver)
 		if (!isusingaes) {
-			lookup_table.insert(std::make_pair(str, base64_encode_str(str)));
-			lookup_table.insert(std::make_pair(base64_encode_str(str), str));
+			lookup_table.insert(std::make_pair(str, new std::string(base64_encode_str(str))));
 		}
 		else
 		{
-			lookup_table.insert(std::make_pair(EncryptionAES(base64_encode_str(str)), str));
-			lookup_table.insert(std::make_pair(str, EncryptionAES(base64_encode_str(str))));
+			lookup_table.insert(std::make_pair(str, new std::string(base64_encode_str(str))));
 		}
 	else
 		if (!isusingaes) {
-			lookup_table.insert(std::make_pair(str, base64_decode(str)));
-			lookup_table.insert(std::make_pair(base64_decode(str), str));
+			lookup_table.insert(std::make_pair(str, new std::string(base64_decode(str))));
 		}
 		else
 		{
-			lookup_table.insert(std::make_pair(DecryptionAES(base64_decode(str)), str));
-			lookup_table.insert(std::make_pair(str, DecryptionAES(base64_decode(str))));
+			lookup_table.insert(std::make_pair(str, new std::string((DecryptionAES(str)))));
 		}
 }
 inline void removeValue(int value) {
-	while (isUsingVector)
-		sleep(1);
-	isUsingVector = true;
 	for (std::vector<int>::iterator it = fds.begin(); it != fds.end(); ++it)
 		if (*it == value) {
 			it = fds.erase(it);
 			break;
 		}
-	isUsingVector = false;
 }
 inline int sendstr(int socketfd, std::string str) {
 	char buf[1];
 	int status = 1;
 	for (size_t i = 0; i < str.size(); i++)
 	{
-		memset(buf, 0, 1);
-		buf[0] = str.at(i);
+		buf[0] = str[i];
 		status = send(socketfd, buf, sizeof(buf), 0);
 		if (status < 1)
 			return -1;
@@ -139,14 +129,10 @@ inline int sendstr(int socketfd, std::string str) {
 	return 1;
 }
 
-inline std::string find_table(std::string key, bool isserver) {
-	if (lookup_table.count(key) != 0)
-		return lookup_table.at(key);
-	else
-	{
+std::string find_table(std::string key, bool isserver) {
+	if (lookup_table.find(key) == lookup_table.end())
 		init_table(key, isserver);
-		return find_table(key, isserver);
-	}
+	return *lookup_table[key];
 }
 
 inline void closeA(int A)
@@ -163,10 +149,8 @@ void AToB(int A, int B, bool cl = true) {
 	else
 		color = "\033[31;1m";
 	char buffer[1];
-	std::string s;
 	while (status > 0 && !isstopping) {
-		memset(buffer, 0, 1);
-		s.clear();
+		std::string s;
 		if (cl)
 		{
 			status = recv(A, buffer, sizeof(buffer), 0);
@@ -177,19 +161,16 @@ void AToB(int A, int B, bool cl = true) {
 					std::cout
 					<< color + (isshow ? buffer : "+") + "\e[0m"
 					<< std::flush;
-			s = find_table(std::string(1, buffer[0]), true);
-			s += "\n";
+			s = find_table(std::string(1, buffer[0]), true) + "\r";
 		}
 		else
 		{
-			while (buffer[0] != '\n')
-			{
+			while (status > 0) {
 				status = recv(A, buffer, sizeof(buffer), 0);
+				if (buffer[0] == '\r')
+					break;
 				s += buffer[0];
-				if (status < 1)
-					goto close;
-			}
-			s = s.substr(0, s.length() - 1);
+			};
 			s = find_table(s, false);
 			if (!isstopping)
 				if (isLog)
@@ -288,7 +269,7 @@ int main(int argc, char* argv[])
 	if (ThisPort == 0) { std::cout << "Local Port Not Found"; usage(); return -1; }
 	if (std::string(g_key) != "password")
 		isusingaes = true;
-	for (int i = 0; i < 1000; ++i)
+	for (int i = 0; i < 100000; ++i)
 		init_table(std::string(1, (char)i), true);
 
 	signal(SIGINT, stop);
