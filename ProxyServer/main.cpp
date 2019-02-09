@@ -269,8 +269,8 @@ int main(int argc, char* argv[])
 	if (ThisPort == 0) { std::cout << "Local Port Not Found"; usage(); return -1; }
 	if (std::string(g_key) != "password")
 		isusingaes = true;
-	for (int i = 0; i < 100000; ++i)
-		init_table(std::string(1, (char)i), true);
+	//for (int i = 0; i < 100000; ++i)
+	//	init_table(std::string(1, (char)i), true);
 
 	signal(SIGINT, stop);
 	signal(SIGPIPE, SIG_IGN);
