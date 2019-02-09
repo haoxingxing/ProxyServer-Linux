@@ -13,6 +13,7 @@
 #include <iostream>
 #include <string>
 #include <iomanip>
+#include <map>
 #include "aes.h"
 #include "base64.h"
 
@@ -26,19 +27,18 @@ bool isusingaes = false;
 int server_fd;
 int thread_cout = 0;
 std::vector<int> fds;
+std::map<std::string, std::string> lookup_table;
 
 char g_key[17] = "password";
-const char g_iv[17] = "gfdertfghjkuyrtg";//ECB MODE不需要关心chain，可以填空
+const char g_iv[17] = "";//ECB MODE不需要关心chain，可以填空
 string EncryptionAES(const string& strSrc) //AES加密
 {
 	size_t length = strSrc.length();
 	int block_num = length / BLOCK_SIZE + 1;
-	//明文
 	char* szDataIn = new char[block_num * BLOCK_SIZE + 1];
 	memset(szDataIn, 0x00, block_num * BLOCK_SIZE + 1);
 	strcpy(szDataIn, strSrc.c_str());
 
-	//进行PKCS7Padding填充。
 	int k = length % BLOCK_SIZE;
 	int j = length / BLOCK_SIZE;
 	int padding = BLOCK_SIZE - k;
@@ -51,7 +51,6 @@ string EncryptionAES(const string& strSrc) //AES加密
 	char *szDataOut = new char[block_num * BLOCK_SIZE + 1];
 	memset(szDataOut, 0, block_num * BLOCK_SIZE + 1);
 
-	//进行进行AES的CBC模式加密
 	AES aes;
 	aes.MakeKey(g_key, g_iv, 16, 16);
 	aes.Encrypt(szDataIn, szDataOut, block_num * BLOCK_SIZE, AES::CBC);
@@ -70,12 +69,10 @@ std::string DecryptionAES(const std::string& strSrc) //AES解密
 	char *szDataOut = new char[length + 1];
 	memcpy(szDataOut, strData.c_str(), length + 1);
 
-	//进行AES的CBC模式解密
 	AES aes;
 	aes.MakeKey(g_key, g_iv, 16, 16);
 	aes.Decrypt(szDataIn, szDataOut, length, AES::CBC);
 
-	//去PKCS7Padding填充
 	if (0x00 < szDataOut[length - 1] <= 0x16)
 	{
 		int tmp = szDataOut[length - 1];
@@ -95,7 +92,29 @@ std::string DecryptionAES(const std::string& strSrc) //AES解密
 	delete[] szDataOut;
 	return strDest;
 }
-void removeValue(int value) {
+inline void init_table(std::string str, bool _isserver) {
+	if (_isserver)
+		if (!isusingaes) {
+			lookup_table.insert(std::make_pair(str, base64_encode_str(str)));
+			lookup_table.insert(std::make_pair(base64_encode_str(str), str));
+		}
+		else
+		{
+			lookup_table.insert(std::make_pair(EncryptionAES(base64_encode_str(str)), str));
+			lookup_table.insert(std::make_pair(str, EncryptionAES(base64_encode_str(str))));
+		}
+	else
+		if (!isusingaes) {
+			lookup_table.insert(std::make_pair(str, base64_decode(str)));
+			lookup_table.insert(std::make_pair(base64_decode(str), str));
+		}
+		else
+		{
+			lookup_table.insert(std::make_pair(DecryptionAES(base64_decode(str)), str));
+			lookup_table.insert(std::make_pair(str, DecryptionAES(base64_decode(str))));
+		}
+}
+inline void removeValue(int value) {
 	while (isUsingVector)
 		sleep(1);
 	isUsingVector = true;
@@ -106,17 +125,31 @@ void removeValue(int value) {
 		}
 	isUsingVector = false;
 }
-void sendstr(int socketfd, std::string str) {
+inline int sendstr(int socketfd, std::string str) {
 	char buf[1];
+	int status = 1;
 	for (size_t i = 0; i < str.size(); i++)
 	{
 		memset(buf, 0, 1);
 		buf[0] = str.at(i);
-		send(socketfd, buf, sizeof(buf), 0);
+		status = send(socketfd, buf, sizeof(buf), 0);
+		if (status < 1)
+			return -1;
+	}
+	return 1;
+}
+
+inline std::string find_table(std::string key, bool isserver) {
+	if (lookup_table.count(key) != 0)
+		return lookup_table.at(key);
+	else
+	{
+		init_table(key, isserver);
+		return find_table(key, isserver);
 	}
 }
 
-void closeA(int A)
+inline void closeA(int A)
 {
 	shutdown(A, SHUT_RDWR);
 	removeValue(A);
@@ -130,18 +163,21 @@ void AToB(int A, int B, bool cl = true) {
 	else
 		color = "\033[31;1m";
 	char buffer[1];
-	while (status > 0 && !isstopping)
-	{
+	std::string s;
+	while (status > 0 && !isstopping) {
 		memset(buffer, 0, 1);
-		std::string s = "";
+		s.clear();
 		if (cl)
 		{
 			status = recv(A, buffer, sizeof(buffer), 0);
-			if (status < 1) break;
-			if (isusingaes)
-				s = EncryptionAES(base64_encode_str(std::string(1, buffer[0])));
-			else
-				s = base64_encode_str(std::string(1, buffer[0]));
+			if (status < 1)
+				break;
+			if (!isstopping)
+				if (isLog)
+					std::cout
+					<< color + (isshow ? buffer : "+") + "\e[0m"
+					<< std::flush;
+			s = find_table(std::string(1, buffer[0]), true);
 			s += "\n";
 		}
 		else
@@ -150,20 +186,18 @@ void AToB(int A, int B, bool cl = true) {
 			{
 				status = recv(A, buffer, sizeof(buffer), 0);
 				s += buffer[0];
-				if (status < 1) goto close;
+				if (status < 1)
+					goto close;
 			}
 			s = s.substr(0, s.length() - 1);
-			if (isusingaes)
-				s = base64_decode(DecryptionAES(s));
-			else
-				s = base64_decode(s);
+			s = find_table(s, false);
+			if (!isstopping)
+				if (isLog)
+					std::cout
+					<< color + (isshow ? s : "+") + "\e[0m"
+					<< std::flush;
 		}
-		sendstr(B, s);
-		if (!isstopping)
-			if (isLog)
-				std::cout
-				<< color + (isshow ? s : "+") + "\e[0m"
-				<< std::flush;
+		status = sendstr(B, s);
 	}
 close:
 	closeA(B);
@@ -171,7 +205,7 @@ close:
 	--thread_cout;
 };
 
-static void stop(int sig) {
+void stop(int sig) {
 	if (isstopping) return;
 	isstopping = true;
 	shutdown(server_fd, SHUT_RDWR);
@@ -205,6 +239,7 @@ void usage() {
 		<< "[--log-flow] "
 		<< std::endl;
 }
+
 int main(int argc, char* argv[])
 {
 	uint16_t ThisPort = 0;
@@ -253,6 +288,9 @@ int main(int argc, char* argv[])
 	if (ThisPort == 0) { std::cout << "Local Port Not Found"; usage(); return -1; }
 	if (std::string(g_key) != "password")
 		isusingaes = true;
+	for (int i = 0; i < 1000; ++i)
+		init_table(std::string(1, (char)i), true);
+
 	signal(SIGINT, stop);
 	signal(SIGPIPE, SIG_IGN);
 	server_fd = socket(AF_INET, SOCK_STREAM, 0);
