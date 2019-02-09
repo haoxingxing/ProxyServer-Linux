@@ -13,6 +13,7 @@
 #include <iostream>
 #include <string>
 #include <iomanip>
+#include "time.h"
 #include <map>
 #include "aes.h"
 #include "base64.h"
@@ -124,7 +125,7 @@ inline int sendstr(int socketfd, std::string str) {
 }
 
 std::string find_table(std::string key, bool isserver) {
-	if (lookup_table.find(key) == lookup_table.end())
+	if (lookup_table.count(key) == 0)
 		init_table(key, isserver);
 	return *lookup_table[key];
 }
@@ -144,31 +145,35 @@ void AToB(int A, int B, bool cl = true) {
 		color = "\033[31;1m";
 	char buffer[1];
 	while (status > 0 && !isstopping) {
-		std::string s;
+		std::string s = "";
+		memset(buffer, 0, 1);
 		if (cl)
 		{
 			status = recv(A, buffer, sizeof(buffer), 0);
 			if (status < 1)
-				break;
-			if (!isstopping)
-				if (isLog)
-					std::cout
-					<< color + (isshow ? buffer : "+") + "\e[0m"
-					<< std::flush;
-			s = find_table(std::string(1, buffer[0]), true) + "\r";
+				goto close;
+			//if (!isstopping)
+			//	if (isLog)
+			//		std::cout
+			//		<< color + (isshow ? buffer : "+") + "\e[0m"
+			//		<< std::flush;
+			s = find_table(std::string(1, buffer[0]), true);
+			s += '\n';
 		}
 		else
 		{
-			while (buffer[0] != '\r') {
+			while (buffer[0] != '\n') {
 				status = recv(A, buffer, sizeof(buffer), 0);
 				s += buffer[0];
+				if (status < 1)
+					goto close;
 			};
 			s = find_table(s.substr(0, s.length() - 1), false);
-			if (!isstopping)
-				if (isLog)
-					std::cout
-					<< color + (isshow ? s : "+") + "\e[0m"
-					<< std::flush;
+			//if (!isstopping)
+			//	if (isLog)
+			//		std::cout
+			//		<< color + (isshow ? s : "+") + "\e[0m"
+			//		<< std::flush;
 		}
 		status = sendstr(B, s);
 	}
