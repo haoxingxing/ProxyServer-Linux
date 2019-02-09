@@ -97,12 +97,12 @@ void init_table(std::string str, bool _isserver) {
 		if (!isusingaes)
 			lookup_table[str] = new std::string(base64_encode_str(str));
 		else
-			lookup_table[str] = new std::string(base64_encode_str(str));
+			lookup_table[str] = new std::string(EncryptionAES(base64_encode_str(str)));
 	else
 		if (!isusingaes)
 			lookup_table[str] = new std::string(base64_decode(str));
 		else
-			lookup_table[str] = new std::string((DecryptionAES(str)));
+			lookup_table[str] = new std::string((base64_decode(DecryptionAES(str))));
 }
 inline void removeValue(int value) {
 	for (std::vector<int>::iterator it = fds.begin(); it != fds.end(); ++it)
@@ -128,6 +128,11 @@ std::string find_table(std::string key, bool isserver) {
 	if (lookup_table.count(key) == 0)
 		init_table(key, isserver);
 	return *lookup_table[key];
+	//if (isserver)
+	//	return base64_encode_str(key);
+	//else
+	//	return base64_decode(key);
+	//return key;
 }
 
 inline void closeA(int A)
@@ -145,35 +150,37 @@ void AToB(int A, int B, bool cl = true) {
 		color = "\033[31;1m";
 	char buffer[1];
 	while (status > 0 && !isstopping) {
-		std::string s = "";
+		std::string s;
+		s.clear();
 		memset(buffer, 0, 1);
 		if (cl)
 		{
 			status = recv(A, buffer, sizeof(buffer), 0);
 			if (status < 1)
 				goto close;
-			//if (!isstopping)
-			//	if (isLog)
-			//		std::cout
-			//		<< color + (isshow ? buffer : "+") + "\e[0m"
-			//		<< std::flush;
+			if (!isstopping)
+				if (isLog)
+					std::cout
+					<< color + (isshow ? buffer : "+") + "\e[0m"
+					<< std::flush;
 			s = find_table(std::string(1, buffer[0]), true);
 			s += '\n';
 		}
 		else
 		{
 			while (buffer[0] != '\n') {
+				memset(buffer, 0, 1);
 				status = recv(A, buffer, sizeof(buffer), 0);
 				s += buffer[0];
 				if (status < 1)
 					goto close;
+				if (!isstopping)
+					if (isLog)
+						std::cout
+						<< color + (isshow ? buffer : "+") + "\e[0m"
+						<< std::flush;
 			};
 			s = find_table(s.substr(0, s.length() - 1), false);
-			//if (!isstopping)
-			//	if (isLog)
-			//		std::cout
-			//		<< color + (isshow ? s : "+") + "\e[0m"
-			//		<< std::flush;
 		}
 		status = sendstr(B, s);
 	}
@@ -266,8 +273,8 @@ int main(int argc, char* argv[])
 	if (ThisPort == 0) { std::cout << "Local Port Not Found"; usage(); return -1; }
 	if (std::string(g_key) != "password")
 		isusingaes = true;
-	//for (int i = 0; i < 100000; ++i)
-	//	init_table(std::string(1, (char)i), true);
+	for (int i = 0; i < 128; ++i)
+		init_table(std::string(1, (char)i), true);
 
 	signal(SIGINT, stop);
 	signal(SIGPIPE, SIG_IGN);
