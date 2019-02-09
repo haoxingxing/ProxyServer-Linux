@@ -93,21 +93,15 @@ std::string DecryptionAES(const std::string& strSrc) //AES解密
 }
 void init_table(std::string str, bool _isserver) {
 	if (_isserver)
-		if (!isusingaes) {
-			lookup_table.insert(std::make_pair(str, new std::string(base64_encode_str(str))));
-		}
+		if (!isusingaes)
+			lookup_table[str] = new std::string(base64_encode_str(str));
 		else
-		{
-			lookup_table.insert(std::make_pair(str, new std::string(base64_encode_str(str))));
-		}
+			lookup_table[str] = new std::string(base64_encode_str(str));
 	else
-		if (!isusingaes) {
-			lookup_table.insert(std::make_pair(str, new std::string(base64_decode(str))));
-		}
+		if (!isusingaes)
+			lookup_table[str] = new std::string(base64_decode(str));
 		else
-		{
-			lookup_table.insert(std::make_pair(str, new std::string((DecryptionAES(str)))));
-		}
+			lookup_table[str] = new std::string((DecryptionAES(str)));
 }
 inline void removeValue(int value) {
 	for (std::vector<int>::iterator it = fds.begin(); it != fds.end(); ++it)
@@ -165,13 +159,11 @@ void AToB(int A, int B, bool cl = true) {
 		}
 		else
 		{
-			while (status > 0) {
+			while (buffer[0] != '\r') {
 				status = recv(A, buffer, sizeof(buffer), 0);
-				if (buffer[0] == '\r')
-					break;
 				s += buffer[0];
 			};
-			s = find_table(s, false);
+			s = find_table(s.substr(0, s.length() - 1), false);
 			if (!isstopping)
 				if (isLog)
 					std::cout
