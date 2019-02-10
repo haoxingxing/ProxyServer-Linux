@@ -24,74 +24,15 @@ bool isshow = false;
 bool isserver = false;
 bool isusingaes = false;
 
+char g_key[17] = "password";
+const char g_iv[17] = "";//ECB MODE不需要关心chain，可以填空
+
 int server_fd;
 int thread_cout = 0;
+int buffer_times = 1024;
 std::vector<int> fds;
 std::map<std::string, std::string*> lookup_table;
 
-char g_key[17] = "password";
-const char g_iv[17] = "";//ECB MODE不需要关心chain，可以填空
-std::string EncryptionAES(const std::string& strSrc) //AES加密
-{
-	size_t length = strSrc.length();
-	size_t block_num = length / BLOCK_SIZE + 1;
-	char* szDataIn = new char[block_num * BLOCK_SIZE + 1];
-	memset(szDataIn, 0x00, block_num * BLOCK_SIZE + 1);
-	strcpy(szDataIn, strSrc.c_str());
-
-	int k = length % BLOCK_SIZE;
-	int j = length / BLOCK_SIZE;
-	int padding = BLOCK_SIZE - k;
-	for (int i = 0; i < padding; i++)
-	{
-		szDataIn[j * BLOCK_SIZE + k + i] = padding;
-	}
-	szDataIn[block_num * BLOCK_SIZE] = '\0';
-
-	char *szDataOut = new char[block_num * BLOCK_SIZE + 1];
-	memset(szDataOut, 0, block_num * BLOCK_SIZE + 1);
-
-	AES aes;
-	aes.MakeKey(g_key, g_iv, 16, 16);
-	aes.Encrypt(szDataIn, szDataOut, block_num * BLOCK_SIZE, AES::CBC);
-	std::string str = base64_encode((unsigned char*)szDataOut,
-		block_num * BLOCK_SIZE);
-	delete[] szDataIn;
-	delete[] szDataOut;
-	return str;
-}
-std::string DecryptionAES(const std::string& strSrc) //AES解密
-{
-	std::string strData = base64_decode(strSrc);
-	size_t length = strData.length();
-	char *szDataIn = new char[length + 1];
-	memcpy(szDataIn, strData.c_str(), length + 1);
-	char *szDataOut = new char[length + 1];
-	memcpy(szDataOut, strData.c_str(), length + 1);
-
-	AES aes;
-	aes.MakeKey(g_key, g_iv, 16, 16);
-	aes.Decrypt(szDataIn, szDataOut, length, AES::CBC);
-
-	if (0x00 < szDataOut[length - 1] <= 0x16)
-	{
-		int tmp = szDataOut[length - 1];
-		for (int i = length - 1; i >= length - tmp; i--)
-		{
-			if (szDataOut[i] != tmp)
-			{
-				memset(szDataOut, 0, length);
-				break;
-			}
-			else
-				szDataOut[i] = 0;
-		}
-	}
-	std::string strDest(szDataOut);
-	delete[] szDataIn;
-	delete[] szDataOut;
-	return strDest;
-}
 void init_table(std::string str, bool _isserver) {
 	if (_isserver)
 		if (!isusingaes)
@@ -155,15 +96,23 @@ void AToB(int A, int B, bool cl = true) {
 		memset(buffer, 0, 1);
 		if (cl)
 		{
-			status = recv(A, buffer, sizeof(buffer), 0);
-			if (status < 1)
-				goto close;
+			for (int c = 0; c < buffer_times; ++c)
+			{
+				memset(buffer, 0, 1);
+				status = recv(A, buffer, sizeof(buffer), c == 0 ? 0 : MSG_DONTWAIT);
+				if (status < 0 && (errno == EINTR || errno == EWOULDBLOCK || errno == EAGAIN))
+					continue;
+				else if (status > 0)
+					s += buffer[0];
+				else
+					goto close;
+			}
 			if (!isstopping)
 				if (isLog)
 					std::cout
 					<< color + (isshow ? buffer : "+") + "\e[0m"
 					<< std::flush;
-			s = find_table(std::string(1, buffer[0]), true);
+			s = find_table(s, true);
 			s += '\n';
 		}
 		else
@@ -222,6 +171,7 @@ void usage() {
 		<< "[--server]"
 		<< "[--log] "
 		<< "[--log-flow] "
+		<< "[--buffer-size length]"
 		<< std::endl;
 }
 
@@ -244,6 +194,11 @@ int main(int argc, char* argv[])
 		}
 		else if (std::string(argv[i]) == "--remote-address") {
 			ObjectAddress = argv[i + 1];
+			++i;
+			continue;
+		}
+		else if (std::string(argv[i]) == "--buffer-size") {
+			buffer_times = std::stoi(argv[i + 1]);
 			++i;
 			continue;
 		}
@@ -318,10 +273,8 @@ int main(int argc, char* argv[])
 		else {
 			fds.push_back(socketfd);
 			std::cout << "\033[31;1m#\033[0m" << std::flush;
-			std::thread c2s(AToB, client_sockfd, socketfd, !isserver);
-			std::thread s2c(AToB, socketfd, client_sockfd, isserver);
-			c2s.detach();
-			s2c.detach();
+			std::thread(AToB, client_sockfd, socketfd, !isserver).detach();
+			std::thread(AToB, socketfd, client_sockfd, isserver).detach();
 		}
 	}
 	close(server_fd);

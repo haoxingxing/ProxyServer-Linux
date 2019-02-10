@@ -5,6 +5,10 @@
 #include <exception>
 #include <cstring>
 #include <string>
+#include "base64.h"
+extern char g_key[17];
+extern const char g_iv[17];//ECB MODE不需要关心chain，可以填空
+
 #define BLOCK_SIZE 16
 using namespace std;
 
@@ -61,4 +65,6 @@ public:
 	void Decrypt(char const* in, char* result, size_t n, int iMode = ECB);
 };
 
+std::string EncryptionAES(const std::string& strSrc); //AES加密
+std::string DecryptionAES(const std::string& strSrc); //AES解密
 #endif // __RIJNDAEL_H__

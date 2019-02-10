@@ -689,6 +689,70 @@ static int Mul4(int a, char b[])
 	int a3 = (b[3] != 0) ? sm_alog[(a + sm_log[b[3] & 0xFF]) % 255] & 0xFF : 0;
 	return a0 << 24 | a1 << 16 | a2 << 8 | a3;
 }
+
+std::string EncryptionAES(const std::string& strSrc) //AES加密
+{
+	size_t length = strSrc.length();
+	size_t block_num = length / BLOCK_SIZE + 1;
+	char* szDataIn = new char[block_num * BLOCK_SIZE + 1];
+	memset(szDataIn, 0x00, block_num * BLOCK_SIZE + 1);
+	strcpy(szDataIn, strSrc.c_str());
+
+	int k = length % BLOCK_SIZE;
+	int j = length / BLOCK_SIZE;
+	int padding = BLOCK_SIZE - k;
+	for (int i = 0; i < padding; i++)
+	{
+		szDataIn[j * BLOCK_SIZE + k + i] = padding;
+	}
+	szDataIn[block_num * BLOCK_SIZE] = '\0';
+
+	char *szDataOut = new char[block_num * BLOCK_SIZE + 1];
+	memset(szDataOut, 0, block_num * BLOCK_SIZE + 1);
+
+	AES aes;
+	aes.MakeKey(g_key, g_iv, 16, 16);
+	aes.Encrypt(szDataIn, szDataOut, block_num * BLOCK_SIZE, AES::CBC);
+	std::string str = base64_encode((unsigned char*)szDataOut,
+		block_num * BLOCK_SIZE);
+	delete[] szDataIn;
+	delete[] szDataOut;
+	return str;
+}
+
+std::string DecryptionAES(const std::string& strSrc) //AES解密
+{
+	std::string strData = base64_decode(strSrc);
+	size_t length = strData.length();
+	char *szDataIn = new char[length + 1];
+	memcpy(szDataIn, strData.c_str(), length + 1);
+	char *szDataOut = new char[length + 1];
+	memcpy(szDataOut, strData.c_str(), length + 1);
+
+	AES aes;
+	aes.MakeKey(g_key, g_iv, 16, 16);
+	aes.Decrypt(szDataIn, szDataOut, length, AES::CBC);
+
+	if (0x00 < szDataOut[length - 1] <= 0x16)
+	{
+		int tmp = szDataOut[length - 1];
+		for (int i = length - 1; i >= length - tmp; i--)
+		{
+			if (szDataOut[i] != tmp)
+			{
+				memset(szDataOut, 0, length);
+				break;
+			}
+			else
+				szDataOut[i] = 0;
+		}
+	}
+	std::string strDest(szDataOut);
+	delete[] szDataIn;
+	delete[] szDataOut;
+	return strDest;
+}
+
 //CONSTRUCTOR
 AES::AES() :
 	m_bKeyInit(false), m_keylength(0), m_blockSize(0), m_iROUNDS(0)
