@@ -31,20 +31,7 @@ int server_fd;
 int thread_cout = 0;
 int buffer_times = 1024;
 std::vector<int> fds;
-std::map<std::string, std::string*> lookup_table;
 
-void init_table(std::string str, bool _isserver) {
-	if (_isserver)
-		if (!isusingaes)
-			lookup_table[str] = new std::string(base64_encode_str(str));
-		else
-			lookup_table[str] = new std::string(EncryptionAES(base64_encode_str(str)));
-	else
-		if (!isusingaes)
-			lookup_table[str] = new std::string(base64_decode(str));
-		else
-			lookup_table[str] = new std::string((base64_decode(DecryptionAES(str))));
-}
 inline void removeValue(int value) {
 	for (std::vector<int>::iterator it = fds.begin(); it != fds.end(); ++it)
 		if (*it == value) {
@@ -65,15 +52,19 @@ inline int sendstr(int socketfd, std::string str) {
 	return 1;
 }
 
-std::string find_table(std::string key, bool isserver) {
-	if (lookup_table.count(key) == 0)
-		init_table(key, isserver);
-	return *lookup_table[key];
-	//if (isserver)
-	//	return base64_encode_str(key);
-	//else
-	//	return base64_decode(key);
-	//return key;
+std::string encode_decode(std::string key, bool isserver) {
+	if (isusingaes)
+	{
+		if (isserver)
+			return EncryptionAES(base64_encode_str(key));
+		else
+			return base64_decode(DecryptionAES(key));
+	}
+	else
+		if (isserver)
+			return base64_encode_str(key);
+		else
+			return base64_decode(key);
 }
 
 inline void closeA(int A)
@@ -112,7 +103,7 @@ void AToB(int A, int B, bool cl = true) {
 					std::cout
 					<< color + (isshow ? buffer : "+") + "\e[0m"
 					<< std::flush;
-			s = find_table(s, true);
+			s = encode_decode(s, true);
 			s += '\n';
 		}
 		else
@@ -129,7 +120,7 @@ void AToB(int A, int B, bool cl = true) {
 						<< color + (isshow ? buffer : "+") + "\e[0m"
 						<< std::flush;
 			};
-			s = find_table(s.substr(0, s.length() - 1), false);
+			s = encode_decode(s.substr(0, s.length() - 1), false);
 		}
 		status = sendstr(B, s);
 	}
